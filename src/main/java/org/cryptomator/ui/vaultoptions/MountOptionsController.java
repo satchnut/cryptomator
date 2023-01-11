@@ -8,6 +8,7 @@ import org.cryptomator.common.vaults.Vault;
 import org.cryptomator.integrations.mount.MountCapability;
 import org.cryptomator.integrations.mount.MountService;
 import org.cryptomator.ui.common.FxController;
+import org.cryptomator.ui.controls.NumericTextField;
 
 import javax.inject.Inject;
 import javafx.beans.binding.Bindings;
@@ -22,6 +23,7 @@ import javafx.scene.control.ToggleGroup;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Stage;
 import javafx.util.StringConverter;
+import javafx.util.converter.NumberStringConverter;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
@@ -42,6 +44,7 @@ public class MountOptionsController implements FxController {
 	private final ObservableValue<Boolean> mountpointDriveLetterSupported;
 	private final ObservableValue<Boolean> readOnlySupported;
 	private final ObservableValue<Boolean> mountFlagsSupported;
+	private final ObservableValue<Boolean> loopbackPortSupported;
 	private final ObservableValue<Path> driveLetter;
 	private final ObservableValue<String> directoryPath;
 	private final ObservableValue<String> defaultMountFlags;
@@ -51,6 +54,8 @@ public class MountOptionsController implements FxController {
 
 	public ChoiceBox<MountService> mountServiceSelection;
 	public CheckBox readOnlyCheckbox;
+	public CheckBox customPortCheckbox;
+	public NumericTextField portField;
 	public CheckBox customMountFlagsCheckbox;
 	public TextField mountFlagsField;
 	public ToggleGroup mountPointToggleGroup;
@@ -71,8 +76,9 @@ public class MountOptionsController implements FxController {
 		this.mountpointDriveLetterSupported = ObservableUtil.mapWithDefault(mountService, s -> s.hasCapability(MountCapability.MOUNT_AS_DRIVE_LETTER), false);
 		this.mountFlagsSupported = ObservableUtil.mapWithDefault(mountService, s -> s.hasCapability(MountCapability.MOUNT_FLAGS), false);
 		this.readOnlySupported = ObservableUtil.mapWithDefault(mountService, s -> s.hasCapability(MountCapability.READ_ONLY), false);
+		this.loopbackPortSupported = ObservableUtil.mapWithDefault(mountService, s -> s.hasCapability(MountCapability.LOOPBACK_PORT), false);
 		this.defaultMountFlags = Bindings.createStringBinding(() -> {
-			if( mountFlagsSupported.getValue()) {
+			if (mountFlagsSupported.getValue()) {
 				return mountService.getValue().getDefaultMountFlags();
 			} else {
 				return "";
@@ -86,7 +92,7 @@ public class MountOptionsController implements FxController {
 	public void initialize() {
 		// mountService
 		mountServiceSelection.getItems().addAll(MountService.get().toList());
-		if(mountService.getValue() == null) {
+		if (mountService.getValue() == null) {
 			mountServiceSelection.getItems().add(null);
 		}
 		mountServiceSelection.setConverter(new MountServiceConverter(vault.getVaultSettings().getDisplayNameOfDesiredMountService()));
@@ -95,6 +101,10 @@ public class MountOptionsController implements FxController {
 
 		// readonly:
 		readOnlyCheckbox.selectedProperty().bindBidirectional(vault.getVaultSettings().usesReadOnlyMode());
+
+		//custom port
+		portField.disableProperty().bind(customPortCheckbox.selectedProperty().not());
+		customPortCheckbox.setSelected(vault.getVaultSettings().loopbackPort().getValue() != -1); //TODO
 
 		// custom mount flags:
 		mountFlagsField.disableProperty().bind(customMountFlagsCheckbox.selectedProperty().not());
@@ -131,6 +141,21 @@ public class MountOptionsController implements FxController {
 			mountFlagsField.textProperty().unbindBidirectional(vault.getVaultSettings().mountFlags());
 			vault.setCustomMountFlags(null);
 			mountFlagsField.textProperty().bind(defaultMountFlags);
+		}
+	}
+
+	@FXML
+	public void toggleUseCustomPort() {
+		var portSetting = vault.getVaultSettings().loopbackPort();
+		if (customPortCheckbox.isSelected()) {
+			if (portSetting.get() < 0) {
+				portSetting.set(mountService.getValue().getDefaultLoopbackPort());
+			}
+			portField.textProperty().bindBidirectional(portSetting, new NumberStringConverter());
+		} else {
+			portField.textProperty().unbindBidirectional(portSetting);
+			vault.getVaultSettings().loopbackPort().set(-1);
+			portField.setText(portSetting.getValue().toString());
 		}
 	}
 
@@ -240,7 +265,7 @@ public class MountOptionsController implements FxController {
 
 		@Override
 		public String toString(MountService provider) {
-			return provider== null? displayNameOfMissingService : provider.displayName(); //TODO: adjust message and don't forget NodeOrientation!
+			return provider == null ? displayNameOfMissingService : provider.displayName(); //TODO: adjust message and don't forget NodeOrientation!
 		}
 
 		@Override
@@ -286,6 +311,14 @@ public class MountOptionsController implements FxController {
 
 	public boolean isReadOnlySupported() {
 		return readOnlySupported.getValue();
+	}
+
+	public ObservableValue<Boolean> loopbackPortSupportedProperty() {
+		return loopbackPortSupported;
+	}
+
+	public boolean isLoopbackPortSupported() {
+		return loopbackPortSupported.getValue();
 	}
 
 	public ObservableValue<Path> driveLetterProperty() {

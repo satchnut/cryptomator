@@ -36,6 +36,15 @@
 			</TextField>
 		</VBox>
 
+		<VBox visible="${controller.loopbackPortSupported}" managed="${controller.loopbackPortSupported}">
+			<CheckBox fx:id="customPortCheckbox" text="Use custom port" onAction="#toggleUseCustomPort"/>
+			<NumericTextField fx:id="portField" HBox.hgrow="ALWAYS" maxWidth="Infinity">
+				<VBox.margin>
+					<Insets left="24"/>
+				</VBox.margin>
+			</NumericTextField>
+		</VBox>
+
 		<Label text="%vaultOptions.mount.mountPoint">
 			<VBox.margin>
 				<Insets top="9"/>
